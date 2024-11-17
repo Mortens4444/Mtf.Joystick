@@ -14,7 +14,7 @@
     <copyright>Copyright © 2024</copyright>
 	<license type="expression">MIT</license>
 	<projectUrl>https://github.com/Mortens4444/Mtf.Joystick</projectUrl>
-    <repository type="git" url="https://github.com/Mortens4444/Mtf.Joystick.git" branch="main" commit="00000000000000000000000000000000000000000" />
+    <repository type="git" url="https://github.com/Mortens4444/Mtf.Joystick.git" branch="main" commit="2c0de768022b38e35cba76b5becad50611921ea8" />
 	<tags>Joystick Mortens</tags>
 	<readme>docs\ReadMe.md</readme>
     <dependencies>
