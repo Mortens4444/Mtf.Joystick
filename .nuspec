@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
   <metadata>
     <id>Mtf.Joystick</id>
-    <version>1.0.0</version>
+    <version>2.0.2</version>
     <description>
       The JoystickHandler class simplifies handling joystick input using the SharpDX.DirectInput library. It continuously polls the joystick state, processes axis movements and button presses, and triggers customizable actions, making it ideal for applications requiring real-time joystick interaction.
 
@@ -18,7 +18,9 @@
 	<tags>Joystick Mortens</tags>
 	<readme>docs\ReadMe.md</readme>
     <dependencies>
-      <group targetFramework="netstandard2.0" />
+	  <group targetFramework="netstandard2.0">
+        <dependency id="SharpDX.DirectInput" version="4.2.0" />
+	  </group>
     </dependencies>
   </metadata>
   <files>
