@@ -13,6 +13,7 @@ Initializes and starts listening to joystick input. It polls the joystick for it
 
 #### Parameters
 
+- `Func<int> getDeviceIndex`: Function to provide the correct joystick index.
 - `Func<bool> continuePulling`: Function to determine if polling should continue.
 - `Func<int> getDeltaModifier`: Function to provide a value for scaling joystick axis movements.
 - `Func<int> getMinimumDelta`: Function to provide the minimum threshold for movement detection.
@@ -28,15 +29,19 @@ Initializes and starts listening to joystick input. It polls the joystick for it
 
 #### Returns
 
-- `CancellationTokenSource`: A token source to manage polling cancellation.
+- `bool`: To indicate if the operation was successful or not.
+
+### `CalibrateJoystick`
+
+Calibrate the joystick.
+
+#### Returns
+
+- `bool`: To indicate if the operation was successful or not.
 
 ### `StopJoystick`
 
 Stops joystick polling.
-
-#### Parameters
-
-- `CancellationTokenSource joystickPollCancellationTokenSource`: The token source managing the polling task.
 
 ---
 
@@ -48,7 +53,8 @@ Here is a simplified example demonstrating how to use the `JoystickHandler`:
 using System;
 using System.Threading;
 
-var joystickPollCancellationTokenSource = JoystickHandler.InitializeJoystick(
+var succeeded = JoystickHandler.InitializeJoystick(
+    getDeviceIndex: () => 0,
     continuePulling: () => true,
     getDeltaModifier: () => 10,
     getMinimumDelta: () => 5,
@@ -70,7 +76,7 @@ var joystickPollCancellationTokenSource = JoystickHandler.InitializeJoystick(
 
 // Simulate stopping the joystick handler after some time
 Thread.Sleep(5000);
-JoystickHandler.StopJoystick(joystickPollCancellationTokenSource);
+JoystickHandler.StopJoystick();
 ```
 
 ---
