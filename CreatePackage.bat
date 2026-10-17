@@ -66,6 +66,12 @@ echo No changes in %ProjectName%; skipping release.
 goto :End
 
 :Release
+dotnet test "%ProjectName%.UnitTests\%ProjectName%.UnitTests.csproj" -c Release
+if errorlevel 1 (
+    echo Unit tests failed or coverage is below the threshold; release aborted.
+    goto :End
+)
+
 for /f %%V in ('powershell -ExecutionPolicy Bypass -File ".\IncrementPackageVersion.ps1" -CsprojFile "%ProjectName%\%ProjectName%.csproj"') do set "PackageVersion=%%V"
 git add -A
 git commit -m "%ProjectName% NuGet package release %PackageVersion%"

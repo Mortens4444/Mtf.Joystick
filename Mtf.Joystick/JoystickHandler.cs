@@ -1,8 +1,7 @@
 ﻿using SharpDX.DirectInput;
-using System.Threading.Tasks;
-using System.Threading;
 using System;
-using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using Action = System.Action;
 
 namespace Mtf.Joystick
@@ -11,11 +10,22 @@ namespace Mtf.Joystick
     {
         private static Task pollingTask;
         private static CancellationTokenSource joystickPollCancellationTokenSource;
-        private static SharpDX.DirectInput.Joystick joystick;
-        public static int DeviceIndex { get; private set; }
-        public static JoystickState State { get; private set; }
-
+        private static IJoystickDevice joystick;
         private static int middleX, middleY;
+
+        /// <summary>
+        /// Opens the device at a given index, or returns null when there is none. Replaceable for testing.
+        /// </summary>
+        internal static Func<int, IJoystickDevice> DeviceFactory { get; set; } = DirectInputJoystickDevice.Open;
+
+        /// <summary>
+        /// Delay between two polls of the device.
+        /// </summary>
+        internal static int PollIntervalMilliseconds { get; set; } = 100;
+
+        public static int DeviceIndex { get; private set; }
+
+        public static JoystickState State { get; private set; }
 
         public static bool InitializeJoystick(
             Func<int> getDeviceIndex = null,
@@ -45,149 +55,102 @@ namespace Mtf.Joystick
             if (getDeltaModifier == null) getDeltaModifier = () => 10;
             if (getMinimumDelta == null) getMinimumDelta = () => 5;
 
-            if (restAction == null) restAction = (deltaX, deltaY) => Debug.WriteLine("Joystick at rest.");
-            if (forwardOrBackwardAction == null) forwardOrBackwardAction = (deltaX, deltaY) => Debug.WriteLine($"Moving forward/backward: {deltaY}");
-            if (forwardWithLeftTurnAction == null) forwardWithLeftTurnAction = (deltaX, deltaY) => Debug.WriteLine($"Forward with left turn: {deltaX}, {deltaY}");
-            if (forwardWithRightTurnAction == null) forwardWithRightTurnAction = (deltaX, deltaY) => Debug.WriteLine($"Forward with right turn: {deltaX}, {deltaY}");
-            if (backwardWithLeftTurnAction == null) backwardWithLeftTurnAction = (deltaX, deltaY) => Debug.WriteLine($"Backward with left turn: {deltaX}, {deltaY}");
-            if (backwardWithRightTurnAction == null) backwardWithRightTurnAction = (deltaX, deltaY) => Debug.WriteLine($"Backward with right turn: {deltaX}, {deltaY}");
-            if (turnLeftOrRightAction == null) turnLeftOrRightAction = (deltaX, deltaY) => Debug.WriteLine($"Turning left/right: {deltaX}");
+            var actions = new JoystickActionSet(
+                restAction,
+                forwardOrBackwardAction,
+                forwardWithLeftTurnAction,
+                forwardWithRightTurnAction,
+                backwardWithLeftTurnAction,
+                backwardWithRightTurnAction,
+                turnLeftOrRightAction,
+                afterPullingAction,
+                buttonActions);
 
-            if (afterPullingAction == null) afterPullingAction = () => Debug.WriteLine("Polling stopped.");
-            if (buttonActions == null)
+            DeviceIndex = getDeviceIndex();
+            var device = DeviceFactory(DeviceIndex);
+            if (device == null)
             {
-                buttonActions = new Action[]
-                {
-                    () => Debug.WriteLine("Button 1 pressed."),
-                    () => Debug.WriteLine("Button 2 pressed."),
-                    () => Debug.WriteLine("Button 3 pressed."),
-                };
+                joystickPollCancellationTokenSource = null;
+                return false;
             }
 
-            using (var directInput = new DirectInput())
-            {
-                var gameControlDevices = directInput.GetDevices(DeviceClass.GameControl, DeviceEnumerationFlags.AttachedOnly);
-                DeviceIndex = getDeviceIndex();
-                if (gameControlDevices.Count > DeviceIndex)
-                {
-                    var deviceInstance = gameControlDevices[DeviceIndex];
-                    joystick = new SharpDX.DirectInput.Joystick(directInput, deviceInstance.InstanceGuid);
-                    joystick.Properties.BufferSize = 128;
-                    joystick.Acquire();
-                    joystick.Poll();
+            joystick = device;
+            CalibrateJoystick();
 
-                    CalibrateJoystick();
-
-                    joystickPollCancellationTokenSource = new CancellationTokenSource();
-                    pollingTask = Task.Run(() =>
-                    {
-                        while (continuePulling() && !joystickPollCancellationTokenSource.IsCancellationRequested)
-                        {
-                            var deltaModifier = getDeltaModifier();
-                            var minimumDelta = getMinimumDelta();
-                            joystick.Poll();
-                            State = joystick.GetCurrentState();
-                            var deltaX = (State.X - middleX) / deltaModifier;
-                            var deltaY = (middleY - State.Y) / deltaModifier;
-
-                            if ((deltaX > -minimumDelta) && (deltaX < minimumDelta))
-                            {
-                                deltaX = 0;
-                            }
-                            if ((deltaY > -minimumDelta) && (deltaY < minimumDelta))
-                            {
-                                deltaY = 0;
-                            }
-
-                            if (deltaX == 0)
-                            {
-                                if (deltaY == 0)
-                                {
-                                    restAction(deltaX, deltaY);
-                                }
-                                else
-                                {
-                                    forwardOrBackwardAction(deltaX, deltaY);
-                                }
-                            }
-                            else if (deltaY > minimumDelta)
-                            {
-                                if (deltaX < -minimumDelta)
-                                {
-                                    forwardWithLeftTurnAction(deltaX, deltaY);
-                                }
-                                else if (deltaX > minimumDelta)
-                                {
-                                    forwardWithRightTurnAction(deltaX, deltaY);
-                                }
-                            }
-                            else if (deltaY < -minimumDelta)
-                            {
-                                if (deltaX < -minimumDelta)
-                                {
-                                    backwardWithLeftTurnAction(deltaX, deltaY);
-                                }
-                                else if (deltaX > minimumDelta)
-                                {
-                                    backwardWithRightTurnAction(deltaX, deltaY);
-                                }
-                            }
-                            else if (deltaY == 0)
-                            {
-                                if (deltaX < -minimumDelta || deltaX > minimumDelta)
-                                {
-                                    turnLeftOrRightAction(deltaX, deltaY);
-                                }
-                            }
-
-                            var buttonStates = State.Buttons;
-                            for (var i = 0; i < buttonStates.Length; i++)
-                            {
-                                if (buttonStates[i] && buttonActions.Length > i)
-                                {
-                                    buttonActions[i]();
-                                }
-                            }
-
-                            Thread.Sleep(100);
-                        }
-
-                        afterPullingAction();
-                    }, joystickPollCancellationTokenSource.Token);
-                    return true;
-                }
-            }
-
-            joystickPollCancellationTokenSource = null;
-            return false;
+            var cancellationTokenSource = new CancellationTokenSource();
+            joystickPollCancellationTokenSource = cancellationTokenSource;
+            pollingTask = Task.Run(
+                () => PollLoop(device, continuePulling, getDeltaModifier, getMinimumDelta, actions, cancellationTokenSource.Token),
+                cancellationTokenSource.Token);
+            return true;
         }
 
+        /// <summary>
+        /// Reads the current position of the open device and uses it as the centre for subsequent delta calculations.
+        /// </summary>
         public static bool CalibrateJoystick()
         {
-            if (joystick != null)
+            var device = joystick;
+            if (device == null)
             {
-                if (State == null)
-                {
-                    State = joystick.GetCurrentState();
-                }
-                middleX = State.X;
-                middleY = State.Y;
-                return true;
+                return false;
             }
-            return false;
+
+            device.Poll();
+            var state = device.GetCurrentState();
+            State = state;
+            middleX = state.X;
+            middleY = state.Y;
+            return true;
         }
 
         public static void StopJoystick()
         {
             joystickPollCancellationTokenSource?.Cancel();
+
+            var task = pollingTask;
+            if (task != null && task.Id != Task.CurrentId)
+            {
+                try
+                {
+                    task.Wait();
+                }
+                catch (AggregateException)
+                {
+                    // The task was cancelled before it started, or a callback threw; either way polling has ended.
+                }
+
+                pollingTask = null;
+            }
+
             joystick?.Dispose();
-            try
+            joystick = null;
+        }
+
+        private static void PollLoop(
+            IJoystickDevice device,
+            Func<bool> continuePulling,
+            Func<int> getDeltaModifier,
+            Func<int> getMinimumDelta,
+            JoystickActionSet actions,
+            CancellationToken cancellationToken)
+        {
+            while (continuePulling() && !cancellationToken.IsCancellationRequested)
             {
-                pollingTask?.Wait();
+                var deltaModifier = getDeltaModifier();
+                var minimumDelta = getMinimumDelta();
+                device.Poll();
+                var state = device.GetCurrentState();
+                State = state;
+
+                JoystickLogic.ComputeDeltas(state.X, state.Y, middleX, middleY, deltaModifier, minimumDelta, out var deltaX, out var deltaY);
+                actions.Invoke(JoystickLogic.Classify(deltaX, deltaY, minimumDelta), deltaX, deltaY);
+                actions.InvokeButtons(state.Buttons);
+
+                Thread.Sleep(PollIntervalMilliseconds);
             }
-            catch
-            {
-            }
+
+            actions.AfterPolling();
         }
     }
 }
