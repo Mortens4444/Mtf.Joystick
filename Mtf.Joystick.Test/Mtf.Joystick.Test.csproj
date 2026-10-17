@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Mtf.MessageBoxes" Version="6.0.9" />
+    <PackageReference Include="Mtf.MessageBoxes" Version="6.0.13" />
   </ItemGroup>
 
   <ItemGroup>
