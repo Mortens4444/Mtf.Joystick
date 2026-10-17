@@ -12,9 +12,7 @@
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <WarningLevel>9999</WarningLevel>
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
-    <DebugType>full</DebugType>
-    <IncludeSymbols>true</IncludeSymbols>
-    <IncludeSource>true</IncludeSource>
+    <DebugType>embedded</DebugType>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <EmbedAllSources>true</EmbedAllSources>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>

@@ -50,11 +50,29 @@ for /R %%P in (*.csproj) do (
     popd
 )
 
+REM Release only when the library itself changed; a dependency-only refresh is committed without a new version.
+set "LibraryChanged="
+for /f "delims=" %%L in ('git status --porcelain -- "%ProjectName%"') do set "LibraryChanged=1"
+if defined LibraryChanged goto :Release
+
+set "AnyChanged="
+for /f "delims=" %%L in ('git status --porcelain') do set "AnyChanged=1"
+if defined AnyChanged (
+    git add -A
+    git commit -m "Update package references"
+    git push
+)
+echo No changes in %ProjectName%; skipping release.
+goto :End
+
+:Release
 for /f %%V in ('powershell -ExecutionPolicy Bypass -File ".\IncrementPackageVersion.ps1" -CsprojFile "%ProjectName%\%ProjectName%.csproj"') do set "PackageVersion=%%V"
 git add -A
 git commit -m "%ProjectName% NuGet package release %PackageVersion%"
 git push
 
-dotnet pack --include-symbols --include-source %ProjectName%\%ProjectName%.csproj -c Release /p:IncludeSymbols=true /p:IncludeSource=true /p:DebugType=full /p:EmbedAllSources=true /p:Deterministic=true
+dotnet pack %ProjectName%\%ProjectName%.csproj -c Release
 move .\%ProjectName%\bin\Release\*.nupkg %TargetDir%
+
+:End
 REM pause
